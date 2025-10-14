@@ -177,4 +177,24 @@ namespace rectpack2D {
 			}
 		);
 	}
+
+	template <
+		class empty_spaces_type,
+		class Subjects,
+		class F,
+		class G,
+		class thread_pool,
+		class Comparator,
+		class... Comparators
+	  >
+	rect_wh find_best_packing_mt_experimental(
+		Subjects& subjects,
+		const finder_input<F, G>& input,
+		thread_pool& pool,
+		Comparator comparator,
+		Comparators... comparators
+
+	) {
+
+	}
 }
