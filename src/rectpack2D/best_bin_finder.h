@@ -297,4 +297,82 @@ namespace rectpack2D {
 
 		return root.get_rects_aabb();
 	}
+
+	// NOTE: This is a temporary function, `find_best_packing_impl()` will
+	// later be generalized to deal with both non- and multi-threaded scenarios.
+	template <
+		class empty_spaces_type, 
+		class order_type,
+		class thread_pool,
+		class F,
+		class I
+	>
+	rect_wh find_best_packing_impl_mt(F for_each_order, const I input) {
+		const auto max_bin = rect_wh(input.max_bin_side, input.max_bin_side);
+
+		std::optional<order_type> best_order;
+
+		int best_total_inserted = -1;
+		auto best_bin = max_bin;
+
+		/* 
+			The root node is re-used on the TLS. 
+			It is always reset before any packing attempt.
+		*/
+
+		thread_local empty_spaces_type root = rect_wh();
+		root.flipping_mode = input.flipping_mode;
+
+		for_each_order ([&](const order_type& current_order, thread_pool& tp) {
+			const auto packing = best_packing_for_ordering(
+				root,
+				current_order,
+				max_bin,
+				input.discard_step
+			);
+
+			if (const auto total_inserted = std::get_if<total_area_type>(&packing)) {
+				/*
+					Track which function inserts the most area in total,
+					just in case that all orders will fail to fit into the largest allowed bin.
+				*/
+				if (!best_order.has_value()) {
+					if (*total_inserted > best_total_inserted) {
+						best_order = current_order;
+						best_total_inserted = *total_inserted;
+					}
+				}
+			}
+			else if (const auto result_bin = std::get_if<rect_wh>(&packing)) {
+				/* Save the function if it performed the best. */
+				if (result_bin->area() <= best_bin.area()) {
+					best_order = current_order;
+					best_bin = *result_bin;
+				}
+			}
+		});
+
+		assert(best_order.has_value());
+		
+		root.reset(best_bin);
+
+		for (auto& rr : *best_order) {
+			auto& rect = dereference(rr).get_rect();
+
+			if (const auto ret = root.insert(rect.get_wh())) {
+				rect = *ret;
+
+				if (callback_result::ABORT_PACKING == input.handle_successful_insertion(rect)) {
+					break;
+				}
+			}
+			else {
+				if (callback_result::ABORT_PACKING == input.handle_unsuccessful_insertion(rect)) {
+					break;
+				}
+			}
+		}
+
+		return root.get_rects_aabb();
+	}
 }

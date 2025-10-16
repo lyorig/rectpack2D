@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <future>
 #include "empty_spaces.h"
 #include "best_bin_finder.h"
 #include "empty_space_allocators.h" // IWYU pragma: export
@@ -187,6 +188,11 @@ namespace rectpack2D {
 		Comparators... comparators
 
 	) {
+		using rect_type = output_rect_t<empty_spaces_type>;
+		using order_type = rectpack2D::span<rect_type**>;
 
+		constexpr std::size_t count_orders = 1 + sizeof...(comparators);
+
+		std::array<std::future<order_type>, count_orders> orders; 
 	}
 }
